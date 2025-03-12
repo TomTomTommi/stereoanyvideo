@@ -1,5 +1,5 @@
 ## Stereo Any Video: Temporally Consistent Stereo Matching
 
-**[Imperial College London](https://www.imperial.ac.uk/)**
+**[Arxiv](https://arxiv.org/abs/2503.05549)**
 
 ![Demo](./assets/stereoanyvideo.gif)
