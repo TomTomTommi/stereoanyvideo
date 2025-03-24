@@ -1,0 +1,9 @@
+defaults:
+  - default_config_eval
+visualize_interval: -1
+render_bin_size: 0
+exp_dir: ./outputs/stereoanyvideo_InfinigenSV
+sample_len: 150
+dataset_name: infinigensv
+MODEL:
+    model_name: StereoAnyVideoModel

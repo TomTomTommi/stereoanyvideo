@@ -1,0 +1,9 @@
+defaults:
+  - default_config_eval
+visualize_interval: -1
+render_bin_size: 0
+exp_dir: ./outputs/stereoanyvideo_sintel_final
+dataset_name: sintel
+dstype: final
+MODEL:
+    model_name: StereoAnyVideoModel

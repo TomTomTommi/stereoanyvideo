@@ -1,0 +1,8 @@
+defaults:
+  - default_config_eval
+visualize_interval: 1
+exp_dir: ./outputs/stereoanyvideo_SouthKensingtonIndoor
+sample_len: 300
+dataset_name: southkensingtonsv
+MODEL:
+    model_name: StereoAnyVideoModel
