@@ -56,7 +56,7 @@ Installation with cuda 12.2
 ```
 sh demo.sh
 ```
-Before running, download the checkpoints on [google drive](https://drive.google.com/drive/folders/1c7L065dcBWhCYYjWYo2edGOG605PnpXv?usp=sharing) (soon...). 
+Before running, download the checkpoints on [google drive](https://drive.google.com/drive/folders/1c7L065dcBWhCYYjWYo2edGOG605PnpXv?usp=sharing) . 
 Copy the checkpoints to `./checkpoints/`
 
 In default, left and right camera videos are supposed to be structured like this:
