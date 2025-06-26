@@ -1,4 +1,4 @@
-# Stereo Any Video: Temporally Consistent Stereo Matching
+# [ICCV2025] Stereo Any Video: Temporally Consistent Stereo Matching
 
 [`Paper`](https://arxiv.org/abs/2503.05549) [[`Project`](https://tomtomtommi.github.io/StereoAnyVideo/)]
 
