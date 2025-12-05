@@ -103,13 +103,10 @@ sh train_stereoanyvideo.sh
 ## Citation 
 If you use our method in your research, please consider citing:
 ```
-@misc{jing2025stereovideotemporallyconsistent,
-        title={Stereo Any Video: Temporally Consistent Stereo Matching}, 
-        author={Junpeng Jing and Weixun Luo and Ye Mao and Krystian Mikolajczyk},
-        year={2025},
-        eprint={2503.05549},
-        archivePrefix={arXiv},
-        primaryClass={cs.CV},
-        url={https://arxiv.org/abs/2503.05549}, 
-      }
+@article{jing2025stereo,
+  title={Stereo Any Video: Temporally Consistent Stereo Matching},
+  author={Jing, Junpeng and Luo, Weixun and Mao, Ye and Mikolajczyk, Krystian},
+  journal={arXiv preprint arXiv:2503.05549},
+  year={2025}
+}
 ```
