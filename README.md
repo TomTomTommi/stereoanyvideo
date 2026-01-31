@@ -1,9 +1,15 @@
-# [ICCV2025 Highlight] Stereo Any Video: Temporally Consistent Stereo Matching
+<h1 align='center' style="text-align:center; font-weight:bold; font-size:2.0em;letter-spacing:2.0px;">
+Stereo Any Video: Temporally Consistent Stereo Matching<h1>      
 
-[`Paper`](https://arxiv.org/abs/2503.05549) [[`Project`](https://tomtomtommi.github.io/StereoAnyVideo/)]
+<div align="center">
+  <a href="https://arxiv.org/abs/2503.05549" target="_blank" rel="external nofollow noopener">
+  <img src="https://img.shields.io/badge/Paper-arXiv-deepgreen" alt="Paper arXiv"></a>
+  <a href="https://tomtomtommi.github.io/StereoAnyVideo/" target="_blank" rel="external nofollow noopener">
+  <img src="https://img.shields.io/badge/Project-Page-9cf" alt="Project Page"></a>
+</div>
+</p>
 
 ![Demo](./assets/stereoanyvideo.gif)
-
 
 ## Installation
 
