@@ -1,5 +1,5 @@
 <h1 align='center' style="text-align:center; font-weight:bold; font-size:2.0em;letter-spacing:2.0px;">
-Stereo Any Video: Temporally Consistent Stereo Matching<h1>      
+Stereo Any Video: \\ Temporally Consistent Stereo Matching<h1>      
 
 <div align="center">
   <a href="https://arxiv.org/abs/2503.05549" target="_blank" rel="external nofollow noopener">
