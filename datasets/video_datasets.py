@@ -962,7 +962,7 @@ class SouthKensingtonStereoVideoDataset(StereoSequenceDataset):
     def __init__(
         self,
         aug_params=None,
-        root="./data/datasets/indoor5/dynamic/",
+        root="./data/datasets/SouthKensington/data/",
         split="test",
         subroot="",
         sample_len=-1,
