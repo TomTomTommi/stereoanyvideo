@@ -10,6 +10,7 @@ import os.path as osp
 from glob import glob
 import cv2
 import re
+from scipy.spatial.transform import Rotation as R
 
 from collections import defaultdict
 from PIL import Image
@@ -102,6 +103,21 @@ class StereoSequenceDataset(data.Dataset):
                 .reshape((depth_pil.size[1], depth_pil.size[0]))
             )
         return depth
+
+    def load_tartanair_pose(self, filepath, index=0):
+        poses = np.loadtxt(filepath)
+        tx, ty, tz, qx, qy, qz, qw = poses[index]
+
+        # Quaternion to rotation matrix
+        r = R.from_quat([qx, qy, qz, qw])
+        R_mat = r.as_matrix()
+
+        # Assemble 4x4 pose matrix
+        T = np.eye(4)
+        T[:3, :3] = R_mat
+        T[:3, 3] = [tx, ty, tz]
+
+        return T
 
     def parse_txt_file(self, file_path):
         with open(file_path, 'r') as file:
@@ -290,6 +306,44 @@ class StereoSequenceDataset(data.Dataset):
                 camera_left_T = camera_left_RT[:3, 3]
                 camera_left_R = camera_left_RT[:3, :3]
 
+            # Spring
+            elif any(filename in path for path in sample["camera"]["left"] for filename in ["focaldistance.txt", "extrinsics.txt", "intrinsics.txt"]):
+                for path in sample["camera"]["left"]:
+                    if "intrinsics.txt" in path:
+                        intrinsics_path = path
+                    elif "extrinsics.txt" in path:
+                        extrinsics_path = path
+
+                fx, fy, cx, cy = np.loadtxt(intrinsics_path)[0]
+                # Build the 3x3 intrinsic matrix
+                camera_left_K = np.array([
+                    [fx, 0, cx],
+                    [0, fy, cy],
+                    [0, 0, 1]
+                ])
+                focal_length_px = camera_left_K[0][0]
+                fix_baseline = 0.065  # From the dataset website, the baseline of the cameras = 6.5cm = 0.065m
+                depth2disp_scale = focal_length_px * fix_baseline
+                camera_left_RT = np.loadtxt(extrinsics_path).reshape(-1, 4, 4)[0]
+                camera_left_T = camera_left_RT[:3, 3]
+                camera_left_R = camera_left_RT[:3, :3]
+
+            # TartanAir
+            elif sample["camera"]["left"][0][-13:] == "pose_left.txt":
+                fx, fy, cx, cy = 320.0, 320.0, 320.0, 240.0
+                # Build the 3x3 intrinsic matrix
+                camera_left_K = np.array([
+                    [fx, 0, cx],
+                    [0, fy, cy],
+                    [0, 0, 1]
+                ])
+                focal_length_px = camera_left_K[0][0]
+                fix_baseline = 0.25
+                depth2disp_scale = focal_length_px * fix_baseline
+                camera_left_RT = self.load_tartanair_pose(sample["camera"]["left"][0], index=0)
+                camera_left_T = camera_left_RT[:3, 3]
+                camera_left_R = camera_left_RT[:3, :3]
+
             # KITTI Depth
             elif sample["camera"]["left"][0][-20:] == "calib_cam_to_cam.txt":
                 calib_data = {}
@@ -424,6 +478,52 @@ class StereoSequenceDataset(data.Dataset):
                         )
                         output_tensor["viewpoint"][i].append(viewpoint)
 
+                    # TartanAir
+                    elif sample["camera"]["left"][0][-13:] == "pose_left.txt":
+                        fx, fy, cx, cy = 320.0, 320.0, 320.0, 240.0
+                        # Build the 3x3 intrinsic matrix
+                        camera_left_K = np.array([
+                            [fx, 0, cx],
+                            [0, fy, cy],
+                            [0, 0, 1]
+                        ])
+                        focal_length_px = camera_left_K[0][0]
+                        fix_baseline = 0.25
+                        depth2disp_scale = focal_length_px * fix_baseline
+                        camera_left_RT = self.load_tartanair_pose(sample["camera"]["left"][0], index=i)
+                        camera_left_T = camera_left_RT[:3, 3]
+                        camera_left_R = camera_left_RT[:3, :3]
+
+                    # Spring
+                    elif any(filename in path for path in sample["camera"]["left"] for filename
+                             in ["focaldistance.txt", "extrinsics.txt", "intrinsics.txt"]) and cam in sample["camera"]:
+
+                        for path in sample["camera"]["left"]:
+                            if "intrinsics.txt" in path:
+                                intrinsics_path = path
+                            elif "extrinsics.txt" in path:
+                                extrinsics_path = path
+
+                        fx, fy, cx, cy = np.loadtxt(intrinsics_path)[0]
+                        # Build the 3x3 intrinsic matrix
+                        camera_K = np.array([
+                            [fx, 0, cx],
+                            [0, fy, cy],
+                            [0, 0, 1]
+                        ])
+                        focal_length_px = camera_left_K[0][0]
+                        fix_baseline = 0.065  # From the dataset website, the baseline of the cameras = 6.5cm = 0.065m
+                        depth2disp_scale = focal_length_px * fix_baseline
+                        camera_RT = np.loadtxt(extrinsics_path).reshape(-1, 4, 4)[i]
+                        camera_T = camera_RT[:3, 3]
+                        camera_R = camera_RT[:3, :3]
+                        viewpoint = self._get_pytorch3d_camera_from_blender(
+                            camera_R, camera_T, camera_K,
+                            sample["metadata"][cam][i][1],
+                            scale=1.0,
+                        )
+                        output_tensor["viewpoint"][i].append(viewpoint)
+
                     # KITTI Depth
                     elif sample["camera"]["left"][0][-20:] == "calib_cam_to_cam.txt":
                         calib_data = {}
@@ -543,7 +643,6 @@ class StereoSequenceDataset(data.Dataset):
                     else:
                         valid_disp = disp < 512
                     disp = np.array(disp).astype(np.float32)
-
                     disp = np.stack([-disp, np.zeros_like(disp)], axis=-1)
                     # disp = np.stack([disp, np.zeros_like(disp)], axis=-1)
 
@@ -863,7 +962,7 @@ class SouthKensingtonStereoVideoDataset(StereoSequenceDataset):
     def __init__(
         self,
         aug_params=None,
-        root="./data/datasets/SouthKensington/data/",
+        root="./data/datasets/indoor5/dynamic/",
         split="test",
         subroot="",
         sample_len=-1,
@@ -1037,6 +1136,142 @@ class KITTIDepthDataset(StereoSequenceDataset):
         logging.info(f"Added {len(self.sample_list)} from KITTI Depth {split}")
 
 
+def split_train_valid(path_list, valid_keywords):
+    path_list_init = path_list
+    for kw in valid_keywords:
+        path_list = list(filter(lambda s: kw not in s, path_list))
+    train_path_list = sorted(path_list)
+    valid_path_list = sorted(list(set(path_list_init) - set(train_path_list)))
+    return train_path_list, valid_path_list
+
+
+class TartanAirDataset(StereoSequenceDataset):
+    def __init__(
+        self,
+        aug_params=None,
+        root="./data/datasets/TartanAir/",
+        split="train",
+        sample_len=-1,
+        only_first_n_samples=-1,
+    ):
+        super().__init__(aug_params, sparse=False)
+        self.sample_len = sample_len
+        self.split = split
+
+        # Each entry is (scene, motion, part)
+        test_entries = [
+            ("abandonedfactory", "Easy", "P002"),
+            ("abandonedfactory", "Hard", "P002"),
+            ("amusement", "Easy", "P007"),
+            ("amusement", "Hard", "P007"),
+            ("carwelding", "Hard", "P003"),
+            ("endofworld", "Easy", "P006"),
+            ("endofworld", "Hard", "P006"),
+            ("gascola", "Easy", "P001"),
+            ("gascola", "Hard", "P001"),
+            ("hospital", "Hard", "P042"),
+            ("office", "Easy", "P006"),
+            ("office", "Hard", "P006"),
+            ("office2", "Easy", "P004"),
+            ("office2", "Hard", "P004"),
+            ("oldtown", "Hard", "P006"),
+            ("soulcity", "Easy", "P008"),
+            ("soulcity", "Hard", "P008"),
+        ]
+
+        scene_root = sorted(glob(osp.join(root, "*")))
+
+        sequence_root_list = []
+        test_set = []
+        train_set = []
+        for i in range(len(scene_root)):
+            sequence_root_list += sorted(glob(osp.join(scene_root[i], "Easy", "*"))) + sorted(glob(osp.join(scene_root[i], "Hard", "*")))
+
+        for path in sequence_root_list:
+            parts = path.split("/")
+            if len(parts) < 5:
+                continue  # skip malformed paths
+
+            scene, motion, part = parts[-3], parts[-2], parts[-1]
+            if (scene, motion, part) in test_entries:
+                test_set.append(path)
+            else:
+                train_set.append(path)
+
+        if self.split == "train":
+            sequence_root_list = train_set
+        elif self.split == "test":
+            sequence_root_list = test_set
+        else:
+            raise KeyError(f"Wrong Split!")
+
+        for i in range(len(sequence_root_list)):
+            filenames = defaultdict(lambda: defaultdict(list))
+            sequence_root = sequence_root_list[i]
+            parts = os.path.normpath(sequence_root).split(os.sep)
+            sequence_name = "_".join(parts[-3:])
+            try:
+                for cam in ['left', 'right']:
+                    depth_path_list = sorted(glob(osp.join(sequence_root, "depth_left/", "*.npy")))
+                    im_path_list = sorted(glob(osp.join(sequence_root, f"image_{cam}/", "*.png")))
+                    pose_path = os.path.join(sequence_root, f"pose_{cam}.txt")
+                    assert len(depth_path_list) == len(im_path_list), [len(depth_path_list), len(im_path_list)]
+                    for j in range(len(depth_path_list)):
+                        depth_path = depth_path_list[j]
+                        assert os.path.isfile(depth_path), depth_path
+                        filenames["depth"][cam].append(depth_path)
+                        im_path = im_path_list[j]
+                        assert os.path.isfile(im_path), im_path
+                        filenames["image"][cam].append(im_path)
+                        filenames["camera"][cam].append(pose_path)
+                        filenames["metadata"][cam].append([sequence_name, (480,640)])
+                        for k in filenames.keys():
+                            assert (
+                                    len(filenames[k][cam])
+                                    == len(filenames["depth"][cam])
+                                    > 0
+                            ), sequence_name
+                seq_len = len(filenames["image"][cam])
+                print("seq_len", sequence_name, seq_len)
+
+                if self.split == "train":
+                    for ref_idx in range(0, seq_len, 3):
+                        step = 1 if self.sample_len == 1 else np.random.randint(1, 6)
+                        if ref_idx + step * self.sample_len < seq_len:
+                            sample = defaultdict(lambda: defaultdict(list))
+                            for cam in ["left", "right"]:
+                                for idx in range(
+                                        ref_idx, ref_idx + step * self.sample_len, step
+                                ):
+                                    for k in filenames.keys():
+                                        if "mask" not in k:
+                                            sample[k][cam].append(
+                                                filenames[k][cam][idx]
+                                            )
+                            self.sample_list.append(sample)
+                else:
+                    step = self.sample_len if (self.sample_len > 0) and (self.sample_len < seq_len) else seq_len
+                    print("sample_step", step)
+                    counter = 0
+                    for ref_idx in range(0, seq_len, step):
+                        sample = defaultdict(lambda: defaultdict(list))
+                        for cam in ["left", "right"]:
+                            for idx in range(ref_idx, ref_idx + step):
+                                for k in filenames.keys():
+                                    sample[k][cam].append(filenames[k][cam][idx])
+
+                        self.sample_list.append(sample)
+                        counter += 1
+                        if only_first_n_samples > 0 and counter >= only_first_n_samples:
+                            break
+            except Exception as e:
+                print(e)
+                print("Skipping sequence", sequence_name)
+        assert len(self.sample_list) > 0, "No samples found"
+        print(f"Added {len(self.sample_list)} from  TarTanAir  {split}")
+        logging.info(f"Added {len(self.sample_list)} from TarTanAir {split}")
+
+
 class VKITTI2Dataset(StereoSequenceDataset):
     def __init__(
         self,
@@ -1127,6 +1362,63 @@ class VKITTI2Dataset(StereoSequenceDataset):
         assert len(self.sample_list) > 0, "No samples found"
         print(f"Added {len(self.sample_list)} from  VKITTI2  {split}")
         logging.info(f"Added {len(self.sample_list)} from VKITTI2 {split}")
+
+
+class SequenceSpringDataset(StereoSequenceDataset):
+    def __init__(
+        self,
+        aug_params=None,
+        sample_len=-1,
+        root="./data/datasets/Spring",
+    ):
+        super(SequenceSpringDataset, self).__init__(aug_params)
+        self.split = "test"
+        self.sample_len = sample_len
+        original_length = len(self.sample_list)
+        image_paths = defaultdict(list)
+        disparity_paths = defaultdict(list)
+        camera_paths = defaultdict(list)
+
+        for cam in ["left", "right"]:
+            image_paths[cam] = sorted(
+                glob(osp.join(root, f"train_frame_{cam}/*"))
+            )
+
+        cam = "left"
+        disparity_paths[cam] = sorted(
+                glob(osp.join(root, f"train_disp1_{cam}/*"))
+            )
+
+        camera_paths[cam] = sorted(
+                glob(osp.join(root, "train_cam_data/*"))
+            )
+
+        num_seq = len(image_paths["left"])
+        # for each sequence
+        for seq_idx in range(num_seq):
+            sequence_name = os.path.basename(image_paths[cam][seq_idx])
+            sample = defaultdict(lambda: defaultdict(list))
+            for cam in ["left", "right"]:
+                sample["image"][cam] = sorted(
+                    glob(osp.join(image_paths[cam][seq_idx], f"frame_{cam}", "*.png"))
+                )[:sample_len]
+                # for _ in range(len(sample["image"][cam])):
+                for _ in range(sample_len):
+                    sample["metadata"][cam].append([sequence_name, (1080, 1920)])
+
+            cam = "left"
+            sample["disparity"][cam] = sorted(
+                glob(osp.join(disparity_paths[cam][seq_idx], f"disp1_{cam}", "*.dsp5"))
+            )[:sample_len]
+            sample["camera"][cam] = sorted(
+                glob(osp.join(camera_paths[cam][seq_idx], "cam_data", "*.txt"))
+            )
+            self.sample_list.append(sample)
+            seq_len = len(sample["image"][cam])
+            print("seq_len", sequence_name, seq_len)
+        logging.info(
+            f"Added {len(self.sample_list) - original_length} from Spring Dataset"
+        )
 
 
 class SequenceSceneFlowDataset(StereoSequenceDataset):
@@ -1380,6 +1672,7 @@ def fetch_dataloader(args):
     add_infinigensv = "infinigen_stereovideo" in args.train_datasets
     add_kittidepth = "kitti_depth" in args.train_datasets
     add_vkitti2 = "vkitti2" in args.train_datasets
+    add_tartanair = "tartanair" in args.train_datasets
     new_dataset = None
 
     if add_monkaa or add_driving or add_things:
@@ -1439,6 +1732,15 @@ def fetch_dataloader(args):
             new_dataset = vkitti2_dataset
         else:
             new_dataset = new_dataset + vkitti2_dataset
+
+    if add_tartanair:
+        tartanair_dataset = TartanAirDataset(
+            aug_params, split="train", sample_len=args.sample_len
+        )
+        if new_dataset is None:
+            new_dataset = tartanair_dataset
+        else:
+            new_dataset = new_dataset + tartanair_dataset
 
     logging.info(f"Adding {len(new_dataset)} samples in total")
     train_dataset = (
