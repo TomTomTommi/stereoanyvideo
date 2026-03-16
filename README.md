@@ -109,10 +109,11 @@ sh train_stereoanyvideo.sh
 ## Citation 
 If you use our method in your research, please consider citing:
 ```
-@article{jing2025stereo,
-  title={Stereo Any Video: Temporally Consistent Stereo Matching},
+@inproceedings{jing2025stereo,
+  title={Stereo any video: Temporally consistent stereo matching},
   author={Jing, Junpeng and Luo, Weixun and Mao, Ye and Mikolajczyk, Krystian},
-  journal={arXiv preprint arXiv:2503.05549},
+  booktitle={Proceedings of the IEEE/CVF International Conference on Computer Vision},
+  pages={20836--20846},
   year={2025}
 }
 ```
